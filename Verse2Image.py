@@ -44,6 +44,7 @@ import ebooklib
 from bs4.element import AttributeValueList
 from ebooklib import epub
 from bs4 import BeautifulSoup, Tag
+import PIL
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFont import FreeTypeFont, ImageFont
 #from __future__ import annotations
@@ -1048,18 +1049,18 @@ def extract_verse(epub_path: str, reference: str,debug: bool = False) -> str:
 
 
 # 5a. Font loading
-def load_font(size: int) -> ImageFont.FreeTypeFont:
+def load_font(size: int) -> FreeTypeFont:
     """Load a TTF at the given size; fall back to Pillow default."""
     for path in FONT_CANDIDATES:
         try:
-            return ImageFont.truetype(path, size)
+            return PIL.ImageFont.truetype(path, size)
         except (IOError, OSError):
             continue
     # Last resort – Pillow built-in (bitmap, no FreeType)
     return ImageFont.load_default()
 
 
-def load_font_bold(size: int) -> ImageFont.FreeTypeFont:
+def load_font_bold(size: int) -> FreeTypeFont:
     """
     Try for a bold variant; fall back to regular.
     """
@@ -1072,7 +1073,7 @@ def load_font_bold(size: int) -> ImageFont.FreeTypeFont:
     ]
     for path in bold_candidates:
         try:
-            return ImageFont.truetype(path, size)
+            return PIL.ImageFont.truetype(path, size)
         except (IOError, OSError):
             continue
     return load_font(size)
@@ -1082,7 +1083,8 @@ def load_font_bold(size: int) -> ImageFont.FreeTypeFont:
 # blocks for the image process. Implement a standard string length
 # for each line number, max number of lines before needing another
 # image. Continue to build images until all the verses are graphed
-# onto images.
+# onto images. Use the End_Block = '....' to denote the end of the
+# block, an additional image is needed, and a new block will follow.
 # 5b. Parse verse text into structured blocks
 
 def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, debug: bool = False) -> list[dict]:
@@ -1140,20 +1142,13 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
 
     if current_line:
         lines.append(current_line)
+        if debug: print(f"current_line: {current_line}")
 
     # Convert the lines into image blocks.
     blocks = []
-
     for image_start in range(0, len(lines), max_lines):
-
-        image_lines = lines[
-            image_start:image_start + max_lines
-        ]
-
-        blocks.append({
-            "num": len(blocks) + 1,
-            "text": "\n".join(image_lines)
-        })
+        image_lines = lines[ image_start:image_start + max_lines ]
+        blocks.append({ "num": len(blocks) + 1, "text": "\n".join(image_lines) })
 
     if debug:
         print("=" * 70)
@@ -1171,11 +1166,7 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
     return blocks
 
 # 5c. Word-wrap that respects verse-number prefixes
-def wrap_verse_block(draw: ImageDraw.ImageDraw,
-                     block: dict,
-                     font: ImageFont.FreeTypeFont,
-                     font_num: ImageFont.FreeTypeFont,
-                     max_width: int) -> list[tuple[str, str]]:
+def wrap_verse_block(draw: ImageDraw.ImageDraw, block: dict, font: FreeTypeFont, font_num: FreeTypeFont, max_width: int) -> list[tuple[str, str]]:
     """
     Return a list of (verse_num_str, text) tuples – one per rendered line.
     The verse number appears only on the first line of the block.
@@ -1211,11 +1202,7 @@ def wrap_verse_block(draw: ImageDraw.ImageDraw,
     return lines
 
 
-def wrap_all(draw: ImageDraw.ImageDraw,
-             blocks: list[dict],
-             font: ImageFont.FreeTypeFont,
-             font_num: ImageFont.FreeTypeFont,
-             max_width: int) -> list[tuple[str, str]]:
+def wrap_all(draw: ImageDraw.ImageDraw, blocks: list[dict], font: FreeTypeFont, font_num: FreeTypeFont, max_width: int) -> list[tuple[str, str]]:
     """Wrap every verse block into renderable lines."""
     all_lines: list[tuple[str, str]] = []
     for block in blocks:
@@ -1225,9 +1212,7 @@ def wrap_all(draw: ImageDraw.ImageDraw,
 
 
 # 5d. Measure total height
-def total_height(lines: list[tuple[str, str]],
-                 font: ImageFont.FreeTypeFont,
-                 citation: str) -> int:
+def total_height(lines: list[tuple[str, str]], font: FreeTypeFont, citation: str) -> int:
     """Estimated pixel height of all text + citation."""
     line_h = int(font.size * LINE_SPACING)
     body_h = len(lines) * line_h
@@ -1237,15 +1222,9 @@ def total_height(lines: list[tuple[str, str]],
 
 
 # 5e. Render a single page image
-def render_page(lines: list[tuple[str, str]],
-                font: ImageFont.FreeTypeFont,
-                font_num: ImageFont.FreeTypeFont,
-                citation: str,
-                page: int = 1,
-                total_pages: int = 1) -> Image.Image:
+def render_page(lines: list[tuple[str, str]], font: FreeTypeFont, font_num: FreeTypeFont, citation: str, page: int = 1, total_pages: int = 1) -> Image.Image:
     """
     Draw one 1920×1080 page.
-
     Each line tuple is (num_str, text_str) where
     num_str is "" for continuation lines.
     """
