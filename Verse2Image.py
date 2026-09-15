@@ -45,63 +45,54 @@ from bs4.element import AttributeValueList
 from ebooklib import epub
 from bs4 import BeautifulSoup, Tag
 import PIL
+from PIL.Image import Image
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFont import FreeTypeFont, ImageFont
-#from __future__ import annotations
-#import textwrap
 
 
 # Configuration
-
 EPUB_PATH       = "nwt_S.epub"
 OUTPUT_DIR      = "verse_images"
-#IMG_WIDTH       = 1920
-#IMG_HEIGHT      = 1080
-#TEXT_COLOR      = (255, 248, 240)   # #fff8f0
-#BG_COLOR        = (60, 60, 60)     # #3c3c3c
-FONT_PATH       = "DejaVuSans.ttf"  # adjust to your system font
-FONT_SIZE_START = 42               # starting font size (pt)
-#FONT_SIZE_MIN   = 24               # minimum before we split into multiple images
-#MARGIN_X        = 120              # horizontal padding
-#MARGIN_Y        = 100              # vertical padding
-#VERSE_NUM_COLOR = (180, 180, 180) # dimmer grey for verse numbers
-CITE_FONT_SIZE  = 28
-
 IMG_WIDTH   = 1920
 IMG_HEIGHT  = 1080
-MARGIN_X    = 120          # left/right padding
-MARGIN_TOP  = 100
+MARGIN_X    = 124#246          # left/right padding
+MARGIN_TOP  = 264
 MARGIN_BOT  = 140          # extra room for citation
 BG_COLOR        = "#3c3c3c"
 TEXT_COLOR      = "#fff8f0"
 VERSE_NUM_COLOR = "#fff8f0"
 CITATION_COLOR  = "#fff8f0"
+SHADOW_COLOR    = "#000000"
 # Sizing
-FONT_SIZE_MAX   = 48
+END_BLOCK   = '...'
+MAX_LINES   = 5
+LINE_LENGTH = 58
+FONT_SIZE_MAX   = 72
+FONT_SIZE_START = 48               # starting font size (pt)
 FONT_SIZE_MIN   = 28
 FONT_SIZE_STEP  = 2
-CITATION_SIZE   = 28
-LINE_SPACING    = 1.4
+CITATION_FONT_SIZE  = 28
+CITATION_X  = IMG_WIDTH - 500
+CITATION_Y  = IMG_HEIGHT - 180
+SHADOW_X_OFFSET = 2
+SHADOW_Y_OFFSET = 1
+LINE_SPACING    = 1.7
+CENTERED        = True
 # Font – set this to your preferred TTF/OTF path.
 # Fallback chain handles common OS locations.
 FONT_CANDIDATES = [
     # ← put your custom font here first
     # "/path/to/your/font.ttf",
-    # macOS
-    "/System/Library/Fonts/Georgia.ttf",
-    "/System/Library/Fonts/Supplemental/Georgia.ttf",
     # Windows
-    "C:/Windows/Fonts/georgia.ttf",
-    # Linux
-    "/usr/share/fonts/truetype/msttcorefonts/Georgia.ttf",
-    "/usr/share/fonts/truetype/crosextra/Caladea-Regular.ttf",
-    # Generic
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+    # "C:/Windows/Fonts/georgia.ttf",
+    # "C:/Windows/Fonts/impact.ttf",
+    "/fonts/georgia.ttf",
+    "/fonts/georgiab.ttf",
+    "/fonts/georgiai.ttf",
+    "/fonts/georgiaz.ttf",
 ]
 
-# ------------------------------------------------------------------
 # Spanish NWT book abbreviations
-# ------------------------------------------------------------------
 BOOK_MAP = {
     # Hebrew Scriptures
     "génesis": "gén.",
@@ -223,25 +214,23 @@ BOOK_MAP = {
 #        ▼
 # HANDOFF to Section 3 Code
 # 
+#
+# Parse a Bible verse reference string.
+# **Example output when tested:**
+# Handles:           → Returns:
+# 2 Samuel 21:3-6    → {'book': '2 Samuel', 'chapter': 21, 'start_verse': 3, 'end_verse': 6}
+# John 3:16          → {'book': 'John', 'chapter': 3, 'start_verse': 16, 'end_verse': 16}
+# [1 Kings 18:30-39] → {'book': '1 Kings', 'chapter': 18, 'start_verse': 30, 'end_verse': 39}
+# 3 John 1:1-14      → {'book': '3 John', 'chapter': 1, 'start_verse': 1, 'end_verse': 14}
+#
+# Raises:
+#     ValueError: if the reference cannot be parsed.
+#
+# Strip surrounding brackets / whitespace
 """
-
-# Reference Parser
 def parse_reference(ref: str) -> dict:
-    #
-    # Parse a Bible verse reference string.
-    # **Example output when tested:**
-    # Handles:           → Returns:
-    # 2 Samuel 21:3-6    → {'book': '2 Samuel', 'chapter': 21, 'start_verse': 3, 'end_verse': 6}
-    # John 3:16          → {'book': 'John', 'chapter': 3, 'start_verse': 16, 'end_verse': 16}
-    # [1 Kings 18:30-39] → {'book': '1 Kings', 'chapter': 18, 'start_verse': 30, 'end_verse': 39}
-    # 3 John 1:1-14      → {'book': '3 John', 'chapter': 1, 'start_verse': 1, 'end_verse': 14}
-    #
-    # Raises:
-    #     ValueError: if the reference cannot be parsed.
-    #
-    # Strip surrounding brackets / whitespace
-    ref = ref.strip().strip("[]()\"'")
 
+    ref = ref.strip().strip("[]()\"'")
     # Pattern: This one was ripped from Ollama, god help anyone that can generate that regex _||_
     #   ^
     #   (?P<book>[\w\s]+?)        book name (may include digits + spaces)
@@ -344,10 +333,8 @@ def strip_tags(html: str) -> str:
     html = re.sub(r"<[^>]+>", "", html)
     return html
 
-
 def decode_entities(text: str) -> str:
     return unescape(text)
-
 
 def clean_text(text: str) -> str:
     text = strip_tags(text)
@@ -356,14 +343,12 @@ def clean_text(text: str) -> str:
     text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)  # collapse blank-line runs
     return text.strip()
 
-
 def element_text(soup_element) -> str:
     if soup_element is None:
         return ""
     # get_text with separator to keep blocks separated
     raw = soup_element.get_text(separator="\n")
     return clean_text(raw)
-
 
 def get_verse_markers(soup_element) -> list:
     markers = []
@@ -466,15 +451,6 @@ def flatten_verses(soup: BeautifulSoup) -> list[tuple[int, str]]:
                     results.append((current_num, text))
             current_num = marker_set[id(el)]
             buffer = []
-            # The marker element itself may contain the verse
-            # number as text — we don't want that in the body.
-            # So we skip its own text and only recurse into
-            # children that are NOT the number span.
-            # Actually, in most NWT epubs the number is the
-            # only content of the <span>, and the verse text
-            # is a SIBLING.  So we simply do NOT recurse into
-            # the marker — the text after it (siblings) will
-            # be picked up by the parent's walk.
             return
 
         # Recurse into children
@@ -506,13 +482,27 @@ def flatten_verses(soup: BeautifulSoup) -> list[tuple[int, str]]:
 #   biblebooknav.xhtml       → top-level book/chapter index
 #   [chapter files]          → actual verse content
 """
-def extract_verses(epub_path: str, book: str, chapter: int, start_verse: int, end_verse: int) -> str:
-    """
-    High-level: open EPUB → find chapter → extract verse range.
+"""
+High-level: open EPUB → find chapter → extract verse range.
 
-    Returns the verse text as a single string, or raises
-    VerseNotFoundError.
-    """
+Returns the verse text as a single string, or raises
+VerseNotFoundError.
+
+# 4a. Find the navigation item
+# 4b. Parse the nav page → resolve to a chapter item
+
+extract_verses:
+    given all the normalized data and epub_path to search for the 
+    verses and return a long string of all the verses 
+find_nav_item:    
+    Locate 'biblebooknav.xhtml' among the EPUB items.
+_normalize_book: taking the input to normalize the book name for searching
+    '2 Samuel'   → 'samuel'
+    'The Psalms' → 'psalms'
+    '1 Kings'    → 'kings'
+
+"""
+def extract_verses(epub_path: str, book: str, chapter: int, start_verse: int, end_verse: int) -> str:
     class VerseNotFoundError(Exception):
         pass
 
@@ -554,44 +544,33 @@ def extract_verses(epub_path: str, book: str, chapter: int, start_verse: int, en
         parts.append(f"[{num}] {txt}")
     return "  ".join(parts)
 
-# 4a. Find the navigation item
 def find_nav_item(doc):
-    """
-    Locate 'biblebooknav.xhtml' among the EPUB items.
-    """
     for item in doc.get_items():
         name = (item.get_name() or "").lower()
         if "biblebooknav" in name:
             return item
     return None
 
-
-# 4b. Parse the nav page → resolve to a chapter item
 def _normalize_book(name: str) -> str:
-    """
-    '2 Samuel'   → 'samuel'
-    'The Psalms' → 'psalms'
-    '1 Kings'    → 'kings'
-    """
     name = name.lower().strip()
     name = re.sub(r"^\d+\s*", "", name)
     name = re.sub(r"^the\s+", "", name)
     return name.strip()
 
+"""
+Resolve a Bible book navigation href from the NWT EPUB navigation page.
+The supplied nav_soup contains book links such as:
+    <a href="biblechapternav10.xhtml">2 Sam.</a>
+For example:
+    book = "2 Samuel"
+    chapter = 21
+resolves to:
+    "biblechapternav10.xhtml"
+NOTE:
+    This navigation page contains BOOK links, not individual chapter
+    links. The returned href is therefore the chapter-navigation page for the requested book.
+"""
 def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bool = False) -> str | AttributeValueList | None:
-    """
-    Resolve a Bible book navigation href from the NWT EPUB navigation page.
-    The supplied nav_soup contains book links such as:
-        <a href="biblechapternav10.xhtml">2 Sam.</a>
-    For example:
-        book = "2 Samuel"
-        chapter = 21
-    resolves to:
-        "biblechapternav10.xhtml"
-    NOTE:
-        This navigation page contains BOOK links, not individual chapter
-        links. The returned href is therefore the chapter-navigation page for the requested book.
-    """
     # Normalize input
     book_input = " ".join(book.lower().strip().split())
     # Try direct mapping first
@@ -635,16 +614,17 @@ def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bo
     # If we got here verse Not found
     return None
 
-def normalize_href(href: str) -> str:
-    """
-    Normalize an EPUB href for comparison.
+"""
+Normalize an EPUB href for comparison.
 
-    Removes:
-      - URL fragments
-      - leading './'
-      - Windows path separators
-      - leading '/'
-    """
+Removes:
+  - URL fragments
+  - leading './'
+  - Windows path separators
+  - leading '/'
+"""
+def normalize_href(href: str) -> str:
+
     href = (href or "").strip()
 
     # Remove fragment
@@ -659,16 +639,15 @@ def normalize_href(href: str) -> str:
 
     return href.lower()
 
+"""
+Find the actual EpubItem in the EPUB matching an href.
 
+Examples:
+    biblechapternav10.xhtml
+    1001061114-split21.xhtml
+    OEBPS/1001061114-split21.xhtml
+"""
 def find_epub_item(doc: epub.EpubBook,href: str,debug: bool = False) -> epub.EpubItem | None:
-    """
-    Find the actual EpubItem in the EPUB matching an href.
-
-    Examples:
-        biblechapternav10.xhtml
-        1001061114-split21.xhtml
-        OEBPS/1001061114-split21.xhtml
-    """
     target = normalize_href(href)
     if debug:
         print(f"Looking for EPUB item: {target}")
@@ -699,30 +678,29 @@ def find_epub_item(doc: epub.EpubBook,href: str,debug: bool = False) -> epub.Epu
 
     return None
 
+"""
+Resolve a Bible book + chapter to the actual EpubItem
+containing the chapter text.
 
-def resolve_chapter_item(doc: epub.EpubBook,book_nav_item: epub.EpubItem,book: str,chapter: int,debug: bool = False) -> epub.EpubItem | None:
-    """
-    Resolve a Bible book + chapter to the actual EpubItem
-    containing the chapter text.
+Example:
+    book = "2 Samuel"
+    chapter = 21
 
-    Example:
-        book = "2 Samuel"
-        chapter = 21
-
-    Navigation:
-        biblebooknav.xhtml
-            |
-            +-- 2 Sam.
-                  |
-                  +-- biblechapternav10.xhtml
+Navigation:
+    biblebooknav.xhtml
+        |
+        +-- 2 Sam.
+              |
+              +-- biblechapternav10.xhtml
+                          |
+                          +-- 21
                               |
-                              +-- 21
-                                  |
-                                  +-- 1001061114-split21.xhtml
+                              +-- 1001061114-split21.xhtml
 
-    Returns:
-        epub.EpubItem for 1001061114-split21.xhtml
-    """
+Returns:
+    epub.EpubItem for 1001061114-split21.xhtml
+"""
+def resolve_chapter_item(doc: epub.EpubBook,book_nav_item: epub.EpubItem,book: str,chapter: int,debug: bool = False) -> epub.EpubItem | None:
     book_key = " ".join(book.lower().strip().split())
 
     # Convert English/full name to the abbreviation used by the EPUB.
@@ -806,14 +784,14 @@ def resolve_chapter_item(doc: epub.EpubBook,book_nav_item: epub.EpubItem,book: s
     return chapter_item
 
 
+"""
 # 4c. Fallback: brute-force content scan
 
-
+If nav resolution fails, scan all document items
+for one whose heading area mentions the book + chapter.
+"""
 def fallback_find_chapter(doc, book: str, chapter: int):
-    """
-    If nav resolution fails, scan all document items
-    for one whose heading area mentions the book + chapter.
-    """
+
     book_key = _normalize_book(book)
 
     for item in doc.get_items():
@@ -830,31 +808,25 @@ def fallback_find_chapter(doc, book: str, chapter: int):
 
     return None
 
-
+"""
 # 4d. Extract the verse range
+Extract verses from an NWT EPUB chapter EpubItem.
 
+Returns one continuous string with Unicode superscript verse
+numbers inserted between verses.
 
+Example:
+    ³ David les dijo a los gabaonitas...
+    ⁴ Los gabaonitas le contestaron...
+    ⁵ Ellos le dijeron al rey...
+
+Actual return value is continuous text:
+    ³ David les dijo... ⁴ Los gabaonitas... ⁵ Ellos...
+
+Footnotes, page numbers, navigation elements, and footnote
+references are excluded.
+"""
 def extract_verses_from_item(item,start_verse: int,end_verse: int,debug: bool = False) -> str:
-    """
-    Extract verses from an NWT EPUB chapter EpubItem.
-
-    Returns one continuous string with Unicode superscript verse
-    numbers inserted between verses.
-
-    Example:
-
-        ³ David les dijo a los gabaonitas...
-        ⁴ Los gabaonitas le contestaron...
-        ⁵ Ellos le dijeron al rey...
-
-    Actual return value is continuous text:
-
-        ³ David les dijo... ⁴ Los gabaonitas... ⁵ Ellos...
-
-    Footnotes, page numbers, navigation elements, and footnote
-    references are excluded.
-    """
-
     if start_verse < 1:
         raise ValueError("start_verse must be >= 1")
 
@@ -983,14 +955,14 @@ def extract_verses_from_item(item,start_verse: int,end_verse: int,debug: bool = 
 # 4e. Public entry point
 class VerseNotFoundError(Exception):
     pass
-
+"""
+One-call interface.
+    extract_verse("nwtb.epub", "2 Samuel 21:3-6")
+    → "[3] And the men of Gath... [4] ..."
+Raises VerseNotFoundError on failure.
+"""
 def extract_verse(epub_path: str, reference: str,debug: bool = False) -> str:
-    """
-    One-call interface.
-        extract_verse("nwtb.epub", "2 Samuel 21:3-6")
-        → "[3] And the men of Gath... [4] ..."
-    Raises VerseNotFoundError on failure.
-    """
+
     ref = parse_reference(reference)
     book = ref["book"]
     chapter = ref["chapter"]
@@ -1047,64 +1019,58 @@ def extract_verse(epub_path: str, reference: str,debug: bool = False) -> str:
 #   • Font             serif (configurable)
 """
 
-
+"""
 # 5a. Font loading
-def load_font(size: int) -> FreeTypeFont:
-    """Load a TTF at the given size; fall back to Pillow default."""
+Load a TTF at the given size; fall back to Pillow default.
+Try for a bold variant; fall back to regular.
+"""
+def load_font(size: int, debug: bool = False) -> FreeTypeFont | ImageFont:
+
     for path in FONT_CANDIDATES:
         try:
+            if debug: print(f"last load_font attempt, loading {path} \n\n")
             return PIL.ImageFont.truetype(path, size)
         except (IOError, OSError):
             continue
     # Last resort – Pillow built-in (bitmap, no FreeType)
-    return ImageFont.load_default()
+    if debug: print("load_font failed, loading default font Pillow built-in \n\n")
+    return PIL.ImageFont.load_default()
 
-
-def load_font_bold(size: int) -> FreeTypeFont:
-    """
-    Try for a bold variant; fall back to regular.
-    """
-    bold_candidates = [
-        # ← custom bold font
-        # "/path/to/your/BoldFont.ttf",
-        "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-        "C:/Windows/Fonts/georgiab.ttf",
-        "/usr/share/fonts/truetype/msttcorefonts/Georgia-Bold.ttf",
-    ]
-    for path in bold_candidates:
+def load_font_bold(size: int, debug: bool = False) -> FreeTypeFont | ImageFont:
+    if debug: print(f"::::::::{FONT_CANDIDATES[1]}")
+    for path in FONT_CANDIDATES[1]:
         try:
             return PIL.ImageFont.truetype(path, size)
         except (IOError, OSError):
             continue
     return load_font(size)
 
-#todo
-# revise parse_verse_blocks to split incoming text into appropriate
+"""
+Split verse text into image-sized text blocks.
+Returns a list of dictionaries. Each dictionary represents one image
+    and contains the lines that should be rendered on that image.
+Example:
+    Input:
+        "² Los primeros habitantes que regresaron a sus propiedades
+         en sus ciudades fueron algunos israelitas, los sacerdotes,
+         los levitas y los siervos del templo."
+
+    Output:
+        [
+        {"num": 1, "text": "² Los primeros habitantes que regresaron a sus"},
+        {"num": 2, "text": "propiedades en sus ciudades fueron algunos israelitas, los"},
+        {"num": 3, "text": "sacerdotes, los levitas y los siervos del templo."}
+        ]
+# parse_verse_blocks to split incoming text into appropriate
 # blocks for the image process. Implement a standard string length
 # for each line number, max number of lines before needing another
 # image. Continue to build images until all the verses are graphed
 # onto images. Use the End_Block = '....' to denote the end of the
 # block, an additional image is needed, and a new block will follow.
 # 5b. Parse verse text into structured blocks
-
+"""
 def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, debug: bool = False) -> list[dict]:
-    """
-    Split verse text into image-sized text blocks.
-    Returns a list of dictionaries. Each dictionary represents one image
-        and contains the lines that should be rendered on that image.
-    Example:
-        Input:
-            "² Los primeros habitantes que regresaron a sus propiedades
-             en sus ciudades fueron algunos israelitas, los sacerdotes,
-             los levitas y los siervos del templo."
 
-        Output:
-            [
-            {"num": 1, "text": "² Los primeros habitantes que regresaron a sus"},
-            {"num": 2, "text": "propiedades en sus ciudades fueron algunos israelitas, los"},
-            {"num": 3, "text": "sacerdotes, los levitas y los siervos del templo."}
-            ]
-    """
 
     if not text or not text.strip(): return []
     if line_length < 1: raise ValueError("line_length must be greater than 0")
@@ -1112,6 +1078,8 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
 
     # Normalize whitespace.
     text = re.sub(r"\s+", " ", text).strip()
+    # Constructing the lines by splitting all the words, then adding
+    # them word by word until line_length
     words = text.split(" ")
     if debug: print(f"words: {words}")
     lines = []
@@ -1123,32 +1091,61 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
             candidate = f"{current_line} {word}"
         else:
             candidate = word
-
         if len(candidate) <= line_length:
             current_line = candidate
         else:
             if current_line:
+                # if greater than line_length, append to lines
+                if debug: print(f"Reached line limit ADDING current_line: {current_line}")
                 lines.append(current_line)
-
-            # Handle an individual word longer than line_length.
+            # Handle an individual word longer than line_length, will return nothing if we don't
             if len(word) > line_length:
                 while len(word) > line_length:
                     lines.append(word[:line_length])
                     word = word[line_length:]
-
                 current_line = word
             else:
                 current_line = word
 
+        if debug: print(f"Building current_line: {current_line}")
+    # Appending last current_line to dict lines to then add the completed lines to blocks
     if current_line:
         lines.append(current_line)
-        if debug: print(f"current_line: {current_line}")
+        if debug: print(f"Adding last current_line: {current_line}")
 
-    # Convert the lines into image blocks.
+    # Convert the lines into blocks of text, divided for each image.
     blocks = []
+    # Adding END_BLOCK to the end of the last, to all blocks except the first
     for image_start in range(0, len(lines), max_lines):
-        image_lines = lines[ image_start:image_start + max_lines ]
+        if image_start != 0:
+            lines[image_start - 1] += END_BLOCK
+    # Constructing the blocks, adding line one by one until
+    for image_start in range(0, len(lines), max_lines):
+        if debug:
+            print(f"######image_start: {image_start}")
+            print(f"######lines: {lines}")
+        # Adding END_BLOCK to the beginning of the line if not the first block
+        if image_start != 0:
+            if debug:
+                print("at last line if block")
+                print(f"LINES -1: {lines[image_start-1]}")
+            lines[image_start] = END_BLOCK + lines[image_start]
+        image_lines = lines[image_start:image_start + max_lines]
         blocks.append({ "num": len(blocks) + 1, "text": "\n".join(image_lines) })
+        if debug:
+            print(f"Image start: {image_start}")
+            print(f"image_lines: {image_lines}")
+            print(f"Future Sight: {len(lines[image_start + max_lines:image_start + (max_lines*2)])}")
+        # If the next block is only one line long, add it to this block instead
+        if len(lines[image_start + max_lines:image_start + (max_lines*2)]) == 1:
+            blocks.pop()
+            image_lines = lines[image_start:image_start + (max_lines*2)]
+            blocks.append({ "num": len(blocks) + 1, "text": "\n".join(image_lines) })
+            if debug:
+                print(f"Image start: {image_start}")
+                print(f"image_lines: {image_lines}")
+            break
+
 
     if debug:
         print("=" * 70)
@@ -1165,171 +1162,178 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
 
     return blocks
 
-# 5c. Word-wrap that respects verse-number prefixes
-def wrap_verse_block(draw: ImageDraw.ImageDraw, block: dict, font: FreeTypeFont, font_num: FreeTypeFont, max_width: int) -> list[tuple[str, str]]:
-    """
-    Return a list of (verse_num_str, text) tuples – one per rendered line.
-    The verse number appears only on the first line of the block.
-    """
-    num_str = f"[{block['num']}]"
-    num_w = draw.textlength(num_str + " ", font=font_num)
+"""
+Determine the largest font size that allows all parsed verse blocks
+to fit within the available image dimensions.
+Returns:
+    int: Font size to pass to load_font(size).
+Raises:
+    ValueError: If blocks is empty or no font size fits.
+"""
+def auto_fit_font(blocks: list[dict], debug: bool = False):
+    if not blocks: raise ValueError("blocks cannot be empty")
 
-    words = block["text"].split()
-    lines: list[tuple[str, str]] = []
-    current_line: list[str] = []
-    current_width = 0
+    # Maximum area available for the verse text.
+    max_width = IMG_WIDTH - (2 * MARGIN_X)
+    max_height = IMG_HEIGHT - MARGIN_TOP - MARGIN_BOT # extra room for citation was built into MARGIN_BOT
 
-    for i, word in enumerate(words):
-        if i == 0:
-            # First word sits on the same line as the verse number
-            word_w = draw.textlength(f"{word} ", font=font)
-            available = max_width - num_w
-        else:
-            available = max_width
+    if max_width <= 0: raise ValueError("Invalid horizontal margins")
+    if max_height <= 0: raise ValueError("Invalid vertical margins")
 
-        if current_width + word_w > available and current_line:
-            lines.append((num_str if not lines else "", " ".join(current_line)))
-            current_line = []
-            current_width = 0
-            num_str = ""  # only first line gets the number
+    # Start at the configured maximum/start size, whichever is smaller.
+    start_size = max(FONT_SIZE_START, FONT_SIZE_MAX)
 
-        current_line.append(word)
-        current_width += draw.textlength(f"{word} ", font=font)
+    # Pillow's multiline_text spacing is measured in pixels.
+    # calculate the actual line spacing from the font.
+    for size in range(start_size, FONT_SIZE_MIN - 1, -FONT_SIZE_STEP):
+        font = load_font(size)
+        fits = True
+        if debug:
+            print("=" * 70)
+            print(f"Testing font size: {size}")
+            print(f"Maximum width : {max_width}")
+            print(f"Maximum height: {max_height}")
 
-    if current_line:
-        lines.append((num_str if not lines else "", " ".join(current_line)))
+        for block in blocks:
+            block_text = block.get("text", "")
+            if not block_text:
+                continue # break out of the block loop if no text lines remain
+            line_count = len(block_text.splitlines()) # Number of lines in this block.
+            # Get the font's normal line height. font.getbbox("Ag") method in Python's
+            # Pillow library returns the bounding box of the text "Ag" as
+            # a tuple of four values: (left, top, right, bottom)
+            bbox = font.getbbox("Ag")
+            font_height = bbox[3] - bbox[1]
+            if debug: print(f"font_height: {font_height} = {bbox[3]} - {bbox[1]}")
+            # Apply LINE_SPACING.
+            line_height = int(font_height * LINE_SPACING)
+            # Pillow multiline_textbbox requires the actual spacing
+            # between lines, rather than the total line height.
+            spacing = max(0, line_height - font_height)
+            # Use multiline_textbbox if available.
+            # This correctly handles the newline characters in blocks.
+            dummy_draw = ImageDraw.Draw(Image.new("RGB", (0,0)))
+            #draw.text((x, y), line, font=font, fill=VERSE_NUM_COLOR)
+            left, top, right, bottom = dummy_draw.multiline_textbbox((0, 0),block_text,font=font,spacing=spacing)
 
-    return lines
+            text_width = right - left
+            text_height = bottom - top
 
+            if debug:
+                print(f"Block {block['num']}: ")
+                print(f"text width x height: {text_width} x {text_height}")
+                print(f"({line_count} lines)")
+            # Check width.
+            if text_width > max_width:
+                fits = False
+                if debug:
+                    print(f"  DOES NOT FIT WIDTH: ")
+                    print(f"{text_width} > {max_width}")
+                break
+            # Check height.
+            if text_height > max_height:
+                fits = False
+                if debug:
+                    print(f"  DOES NOT FIT HEIGHT: ")
+                    print(f"{text_height} > {max_height}")
+                break
 
-def wrap_all(draw: ImageDraw.ImageDraw, blocks: list[dict], font: FreeTypeFont, font_num: FreeTypeFont, max_width: int) -> list[tuple[str, str]]:
-    """Wrap every verse block into renderable lines."""
-    all_lines: list[tuple[str, str]] = []
-    for block in blocks:
-        all_lines.extend(wrap_verse_block(draw, block, font, font_num, max_width))
-    return all_lines
+        # If every block fits, this is the largest usable font size.
+        if fits:
+            if debug:
+                print("-" * 70)
+                print(f"SELECTED FONT SIZE: {size}")
+                print("=" * 70)
 
-
-
-# 5d. Measure total height
-def total_height(lines: list[tuple[str, str]], font: FreeTypeFont, citation: str) -> int:
-    """Estimated pixel height of all text + citation."""
-    line_h = int(font.size * LINE_SPACING)
-    body_h = len(lines) * line_h
-    citation_h = int(CITATION_SIZE * LINE_SPACING) + 40  # gap above citation
-    return body_h + citation_h
-
-
-
-# 5e. Render a single page image
-def render_page(lines: list[tuple[str, str]], font: FreeTypeFont, font_num: FreeTypeFont, citation: str, page: int = 1, total_pages: int = 1) -> Image.Image:
-    """
-    Draw one 1920×1080 page.
-    Each line tuple is (num_str, text_str) where
-    num_str is "" for continuation lines.
-    """
-    img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT), BG_COLOR)
-    draw = ImageDraw.Draw(img)
-
-    line_h = int(font.size * LINE_SPACING)
-    y = MARGIN_TOP
-
-    for num_str, text in lines:
-        x = MARGIN_X
-
-        if num_str:
-            draw.text((x, y), num_str, font=font_num, fill=VERSE_NUM_COLOR)
-            x += draw.textlength(num_str + " ", font=font_num)
-
-        draw.text((x, y), text, font=font, fill=TEXT_COLOR)
-        y += line_h
-
-    # ── Citation (bottom-center) ──
-    cit_font = load_font(CITATION_SIZE)
-    cit_text = citation
-    if total_pages > 1:
-        cit_text += f"  ({page}/{total_pages})"
-
-    cit_w = draw.textlength(cit_text, font=cit_font)
-    cit_x = (IMG_WIDTH - cit_w) // 2
-    cit_y = IMG_HEIGHT - MARGIN_BOT - int(CITATION_SIZE * LINE_SPACING)
-    draw.text((cit_x, cit_y), cit_text, font=cit_font, fill=CITATION_COLOR)
-
-    return img
-
-
-
-# 5f. Auto-fit: shrink font until it fits one page
-def _fits_one_page(blocks, citation, font_size) -> bool:
-    """Quick check without rendering – just measure."""
-    max_w = IMG_WIDTH - 2 * MARGIN_X
-    usable_h = IMG_HEIGHT - MARGIN_TOP - MARGIN_BOT
-
-    font = load_font(font_size)
-    font_num = load_font_bold(font_size)
-
-    # Minimal draw for measuring
-    tmp = Image.new("RGB", (10, 10))
-    draw = ImageDraw.Draw(tmp)
-
-    lines = wrap_all(draw, blocks, font, font_num, max_w)
-    line_h = int(font.size * LINE_SPACING)
-    return len(lines) * line_h <= usable_h
-
-
-def auto_fit_font(blocks, citation: str) -> int:
-    """Return the largest font size (MIN..MAX) that fits one page."""
-    for size in range(FONT_SIZE_MAX, FONT_SIZE_MIN - 1, -FONT_SIZE_STEP):
-        if _fits_one_page(blocks, citation, size):
             return size
 
-def split_into_pages(blocks, citation, font_size):
-    """
-    If text doesn't fit one page at MIN font,
-    split verse blocks across multiple pages.
-    Returns list of page-line-lists.
-    """
-    max_w = IMG_WIDTH - 2 * MARGIN_X
-    usable_h = IMG_HEIGHT - MARGIN_TOP - MARGIN_BOT
+    # Nothing between FONT_SIZE_START and FONT_SIZE_MIN fit.
+    raise ValueError(f"No font size from start {start_size} down to {FONT_SIZE_MIN} fits the supplied blocks.")
 
-    font = load_font(font_size)
-    font_num = load_font_bold(font_size)
+"""
+Convert verse text into one image per verse block.
+Example:
+    [3] First Block...
+    [4] Second Block...
+    [5] Third Block...
+produces:
+    Image 1 -> Block 3
+    Image 2 -> Block 4
+    Image 3 -> Block 5
+render_page to accept the blocks from parse_verse_blocks correctly
+# and not the lines it is currently accepting, rendering with this logic:
+#   for block in blocks:
+#       for lines in block:
+#           print(f"\nImage {block['num']}:")
+#           print(block["text"])
+# onto the number of images determined by the number of blocks
+# 5e. Render a single page image
+"""
+def render_pages(blocks: dict, citation: str, font: FreeTypeFont, font_num: FreeTypeFont, debug: bool = False) -> list[Image.Image]:
+    # Parse the extracted verse text
+    if not blocks: raise ValueError("No verse blocks found in text.")
 
-    tmp = Image.new("RGB", (10, 10))
-    draw = ImageDraw.Draw(tmp)
-
-    # Wrap each block independently so we can group them
-    wrapped = []
-    for block in blocks:
-        wrapped.append(wrap_verse_block(draw, block, font, font_num, max_w))
-
-    # Greedily fill pages
+    if debug:
+        print("GOT TO FUNCTION render_page")
+        print(f"Found {len(blocks)} blocks.")
+        for block in blocks:
+            print(f"\nImage {block['num']}:")
+            print(block["text"])
+    # Create one image per verse block
+    images = []
     line_h = int(font.size * LINE_SPACING)
-    lines_per_page = max(usable_h // line_h, 1)
+    for num_str, block in enumerate(blocks, start=1):
+        if not CENTERED:
+            x = MARGIN_X
+        y = MARGIN_TOP
+        img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT), BG_COLOR)
+        draw = ImageDraw.Draw(img)
+        if num_str:
+            lines = block["text"].split('\n')
+            if debug:
+                print("IN blocks FOR LOOP")
+                print(f"Lines: {lines}")
+                print(f"\nImage {block['num']}:")
+                print(block["text"])
+                print(f"At current number of verse block: {num_str}")
+            for line in lines:
+                if CENTERED:
+                    text_width = draw.textlength(line,font=font)
+                    x = (IMG_WIDTH - text_width) // 2
+                shadow_position = (x + SHADOW_X_OFFSET, y + SHADOW_Y_OFFSET)
+                draw.text(shadow_position, line, font=font, fill=SHADOW_COLOR)
+                draw.text((x, y), line, font=font, fill=VERSE_NUM_COLOR)
+                y += line_h
+                if debug:
+                    print("IN lines FOR LOOP")
+                    print(f"Adding \'{line}\' to image")
+                    print("")
+                    print(f"Line length: {len(line)}")
+                    print(f"Line length: {draw.textlength(line,font=font)}")
+                    print(f"Line length: {(len(line) + MARGIN_X)}")
+                    print(x)
+            if debug: print(f"CITATION_X: {CITATION_X}, CITATION_Y: {CITATION_Y}")
+            draw.text((CITATION_X, CITATION_Y), citation, font=font_num, fill=VERSE_NUM_COLOR)
+        images.append(img)
+    if debug:
+        print("\nGOT TO end FUNCTION render_pages")
+        print(f"returning {len(images)} images.")
+        print(images)
 
-    pages = []
-    current: list[tuple[str, str]] = []
-    for block_lines in wrapped:
-        if len(current) + len(block_lines) > lines_per_page:
-            pages.append(current)
-            current = []
-        current.extend(block_lines)
-    if current:
-        pages.append(current)
-
-    return pages
+    return images
 
 
+"""
+Takes the verse string from Section 4 and returns
+one or more 1920×1080 PNG images.
+
+    images = generate_images(verse_text, "2 Samuel 21:3–6")
+    images[0].save("out.png")
 # 5g. Public entry point
+"""
 def generate_images(verse_text: str, citation: str,debug: bool = False) -> list[Image.Image]:
-    """
-    Takes the verse string from Section 4 and returns
-    one or more 1920×1080 PNG images.
 
-        images = generate_images(verse_text, "2 Samuel 21:3–6")
-        images[0].save("out.png")
-    """
-    blocks = parse_verse_blocks(verse_text,60,debug=True)
+    blocks = parse_verse_blocks(verse_text, LINE_LENGTH, MAX_LINES)
     if debug:
         print(f"verse text: {verse_text}")
         print(f"citation: {citation}")
@@ -1337,31 +1341,18 @@ def generate_images(verse_text: str, citation: str,debug: bool = False) -> list[
 
     if not blocks:
         raise ValueError("No verse blocks found in text.")
+    if debug:
+        print("GOT INTO fit on one page with a good font size")
+    # determine the font size to give to load_font(size), so that font can be given
+    # to the render_page to generate the image,
+    size =  auto_fit_font(blocks,debug)
 
-    # Try to fit on one page with a good font size
-    if _fits_one_page(blocks, citation, FONT_SIZE_MIN):
-        size = auto_fit_font(blocks, citation)
-        max_w = IMG_WIDTH - 2 * MARGIN_X
+    font = load_font(size)
+    font_num = load_font_bold(size - (size // 4))
+    if debug: print(f"font_num before being passed to render_page: {font_num}")
+    if debug: print(f"font before being passed to render_page: {font}")
 
-        font = load_font(size)
-        font_num = load_font_bold(size)
-        tmp = Image.new("RGB", (10, 10))
-        draw = ImageDraw.Draw(tmp)
-        lines = wrap_all(draw, blocks, font, font_num, max_w)
-
-        return [render_page(lines, font, font_num, citation)]
-
-    # Doesn't fit – split across pages at MIN size
-    pages = split_into_pages(blocks, citation, FONT_SIZE_MIN)
-    total = len(pages)
-
-    font = load_font(FONT_SIZE_MIN)
-    font_num = load_font_bold(FONT_SIZE_MIN)
-
-    return [
-        render_page(page_lines, font, font_num, citation, page=i + 1, total_pages=total)
-        for i, page_lines in enumerate(pages)
-    ]
+    return render_pages(blocks, citation, font, font_num, debug)
 
 # TEST Block
 """
@@ -1446,14 +1437,14 @@ def main():
     print("-" * 60)
 
     # Generate images
-    try:
-        #images = generate_images(verse_text,citation,args.debug)
-        images = generate_images(verse_text,citation,True)
 
+    try:
+        images = generate_images(verse_text,citation,args.debug)
+        #images = generate_images(verse_text,citation,True)
+        if args.debug: print(f"Got images: {images}")
     except Exception as e:
         print(f"[error] Unable to generate images: {e}",file=sys.stderr)
         return 1
-
     if not images:
         print("[error] No images were generated.", file=sys.stderr)
         return 1
@@ -1473,8 +1464,14 @@ def main():
 
     # Save generated images
     saved_files = []
-    for index, image in enumerate(images, start=1):
+    #image: list[Image.Image]
+    if args.debug: print(f"image from images: {images} len {len(images)}")
+    for index, image in enumerate(images, start=0):
+        if args.debug:
+            print(f"index from images: {index}")
+            print(f"image from images: {image}")
         if len(images) == 1:
+            if args.debug: print("images got ONED")
             filename = f"{safe_citation}.png"
         else:
             filename = f"{safe_citation}_{index:02d}.png"
@@ -1484,12 +1481,13 @@ def main():
         try:
             image.save(output_path,format="PNG")
             saved_files.append(output_path)
-            print(f"Saved: {output_path} ({image.width}x{image.height})")
-
+            if args.debug: print(f"Saved: {output_path} ({image.width}x{image.height})")
         except OSError as e:
             print(f"[error] Could not save {output_path}: {e}",file=sys.stderr)
             return 1
-
+        except Exception as e:
+            print(f"[error] Could not save for generic error {output_path}: {e}",file=sys.stderr)
+            return 1
 
     # Summary
     print()
