@@ -21,17 +21,17 @@ RUN mkdir -p /app/verse_images /app/fonts
 ENTRYPOINT ["python", "verse2image.py"]
 
 #docker build -t it1013/verse2image .
-#
+# Linux
 #docker run --rm \
 #  -v "$(pwd)/verse_images:/app/verse_images" \
 #  -v "$(pwd)/config.ini:/app/config.ini" \
 #  -v "$(pwd)/nwt_S.epub:/app/nwt_S.epub:ro" \
-#  bible-verse-generator "2 Samuel 21:3-6"
-
+#  it1013/verse2image "2 Samuel 21:3-6"
+# Windows:
 #docker run --rm `
 #  -v "${PWD}/verse_images:/app/verse_images" `
 #  -v "${PWD}/config.ini:/app/config.ini" `
 #  -v "${PWD}/nwt_S.epub:/app/nwt_S.epub:ro" `
-#  bible-verse-generator "2 Samuel 21:3-6"
+#  it1013/verse2image "2 Samuel 21:3-6"
 
-#docker run --rm -v "${PWD}/verse_images:/app/verse_images" -v "${PWD}/config.ini:/app/config.ini" -v "${PWD}/nwt_S.epub:/app/nwt_S.epub:ro" bible-verse-generator "2 Samuel 21:3-6" --debug
+#docker run --rm -v "${PWD}/verse_images:/app/verse_images" -v "${PWD}/config.ini:/app/config.ini" -v "${PWD}/nwt_S.epub:/app/nwt_S.epub:ro" it1013/verse2image "2 Samuel 21:3-6" --debug
