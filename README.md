@@ -99,8 +99,7 @@ The application removes surrounding brackets before parsing the reference.
 The EPUB can be explicitly supplied with `--epub`:
 
 ```bash
-python verse2image.py "John 3:16" \
-    --epub nwt_S.epub
+python verse2image.py "John 3:16" --epub nwt_S.epub
 ```
 
 ---
@@ -110,9 +109,7 @@ python verse2image.py "John 3:16" \
 Use `--output-dir` to control where generated images are saved:
 
 ```bash
-python verse2image.py "John 3:16" \
-    --epub nwt_S.epub \
-    --output-dir verse_images
+python verse2image.py "John 3:16" --epub nwt_S.epub --output-dir verse_images
 ```
 
 If the output directory does not exist, the application creates it automatically.
@@ -124,8 +121,7 @@ If the output directory does not exist, the application creates it automatically
 Use `--debug` to display detailed information about the extraction and image-generation process:
 
 ```bash
-python verse2image.py "2 Samuel 21:3-6" \
-    --debug
+python verse2image.py "2 Samuel 21:3-6" --debug
 ```
 
 Debug mode can show information such as:
@@ -701,16 +697,13 @@ python verse2image.py "John 3:16"
 ## Example 4 — Specify EPUB and Output Directory
 
 ```bash
-python verse2image.py "John 3:16" \
-    --epub nwt_S.epub \
-    --output-dir verse_images
+python verse2image.py "John 3:16" --epub nwt_S.epub --output-dir verse_images
 ```
 
 ## Example 5 — Debug Mode
 
 ```bash
-python verse2image.py "2 Samuel 21:3-6" \
-    --debug
+python verse2image.py "2 Samuel 21:3-6" --debug
 ```
 
 ---
@@ -720,6 +713,8 @@ python verse2image.py "2 Samuel 21:3-6" \
 The application can also be run inside Docker.
 
 ## Build the Image
+
+Build assumes that you have already downloaded the Repo to Local Storage, have docker already installed on your system, and that you are running the `build` command in the same directory.
 
 ```bash
 docker build -t it1013/verse2image .
@@ -815,9 +810,7 @@ and:
 config = Config()
 ```
 
-Configuration controls the EPUB path, output directory, image dimensions, margins, fonts, colors, line spacing, and text layout.
-
-Important image-related settings include concepts such as:
+Configuration controls the EPUB path, output directory, image dimensions, margins, fonts, colors, line spacing, and text layout. Important image-related settings include concepts such as:
 
 ```text
 Image width
@@ -836,8 +829,6 @@ Text color
 Shadow color
 Citation positioning
 ```
-
-Keeping these values in configuration allows the image appearance to be changed without modifying the extraction logic.
 
 ---
 
