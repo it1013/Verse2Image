@@ -149,6 +149,7 @@ BOOK_MAP = {
     "filemon": "filem.",
     "hebreos": "heb.",
     "santiago": "sant.",
+    "sant": "sant.",
     "1 pedro": "1 ped.",
     "1pedro": "1 ped.",
     "2 pedro": "2 ped.",
@@ -280,9 +281,10 @@ BOOK_MAP_E = {
 #
 # Strip surrounding brackets / whitespace
 """
-def parse_reference(ref: str) -> dict:
-
+def parse_reference(ref: str,debug:bool = False) -> dict:
+    if debug: print(f"In parse_reference, was passed {ref}")
     ref = ref.strip().strip("[]()\"'")
+    if debug: print(f"After strip parse_reference ref: {ref}")
     # Pattern: This one was ripped from Ollama, god help anyone that can generate that regex _||_
     #   ^
     #   (?P<book>[\w\s]+?)        book name (may include digits + spaces)
@@ -295,6 +297,7 @@ def parse_reference(ref: str) -> dict:
     pattern = re.compile(r"^\s*"r"(?P<book>[\w\s]+?)"r"\s+"r"(?P<chapter>\d+)"r"[:]"r"(?P<start>\d+)"r"(?:-(?P<end>\d+))?"r"\s*$")
 
     m = pattern.match(ref)
+    if debug: print(f"Applied pattern: {m}")
     if not m:
         raise ValueError(f"Could not parse reference: {ref!r}")
 
@@ -629,7 +632,7 @@ def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bo
     expected_abbreviation = BOOK_MAP.get(book_input)
     # If the input wasn't found in the BOOK_MAP, attempt to
     # check BOOK_MAP_E for English abbreviation.
-    if expected_abbreviation:
+    if not expected_abbreviation:
         expected_abbreviation = BOOK_MAP_E.get(book_input)
         # If the input wasn't found in the BOOK_MAP or BOOK_MAP_E, normalize it and compare
         # against the visible text in the navigation.
@@ -650,6 +653,7 @@ def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bo
         if debug: print(f"Checking book: '{link_text}' -> {a.get('href')}")
         # Primary match: mapped abbreviation
         if expected_abbreviation:
+            if debug: print(f"Got to expected_abbreviation, going to compare '{link_text}' -> '{expected_abbreviation}'")
             if link_text == expected_abbreviation:
                 return a["href"]
 
@@ -906,7 +910,7 @@ def extract_verses_from_item(item,start_verse: int,end_verse: int,debug: bool = 
         print(f"Item: {item.get_name()}")
         print(f"Requested verses: {start_verse}-{end_verse}")
         print("=" * 70)
-
+        print(soup)
     # Remove elements that are not part of the verse text.
     for selector in ("p.w_navigation", ".pageNum", ".groupFootnote", "aside[epub\\:type='footnote']", "[epub\\:type='noteref']",):
         for element in soup.select(selector):
@@ -926,8 +930,10 @@ def extract_verses_from_item(item,start_verse: int,end_verse: int,debug: bool = 
             verse_markers[verse_number] = span
     if debug:
         print("Found verses:",sorted(verse_markers.keys()))
-
     if not verse_markers:
+        print("GOT TO not verse_markers")
+        #print(soup.find_all("span", id=re.compile(r"^chapter\d+_verse\d+$")))
+        #print(re.match(r"^chapter\d+_verse(\d+)$",span.get("id", "")))
         raise VerseNotFoundError("No verse markers found in chapter.")
 
     available = sorted(verse_markers.keys())
@@ -1467,12 +1473,12 @@ def main():
     parser.add_argument("--output-dir",default=config.output_dir,help=f"Directory where PNG images will be saved (default: {config.output_dir})")
     parser.add_argument("--debug",action="store_true",help=f"Enable debug mode (default: {False}) ")
     args = parser.parse_args()
-
+    if args.debug: print("DEBUG ENABLED")
     # Parse reference
     try:
         reference = args.reference.strip()
         # Validate the reference before attempting EPUB extraction.
-        parsed = parse_reference(reference)
+        parsed = parse_reference(reference,args.debug)
         # Normalize citation format.
         citation = (f"{parsed['book']} " f"{parsed['chapter']}:" f"{parsed['start_verse']}"
         )
