@@ -162,6 +162,96 @@ BOOK_MAP = {
     "judas": "jud.",
     "apocalipsis": "apoc.",
 }
+BOOK_MAP_E = {
+    # Hebrew Scriptures - English
+    "genesis": "gen.",
+    "exodus": "ex.",
+    "leviticus": "lev.",
+    "numbers": "num.",
+    "deuteronomy": "deut.",
+    "joshua": "josh.",
+    "judges": "judg.",
+    "ruth": "ruth",
+    "1 samuel": "1 sam.",
+    "1samuel": "1 sam.",
+    "2 samuel": "2 sam.",
+    "2samuel": "2 sam.",
+    "1 kings": "1 ki.",
+    "1kings": "1 ki.",
+    "2 kings": "2 ki.",
+    "2kings": "2 ki.",
+    "1 chronicles": "1 chron.",
+    "1chronicles": "1 chron.",
+    "2 chronicles": "2 chron.",
+    "2chronicles": "2 chron.",
+    "ezra": "ezra",
+    "nehemiah": "neh.",
+    "esther": "esther",
+    "job": "job",
+    "psalms": "ps.",
+    "psalm": "ps.",
+    "proverbs": "prov.",
+    "ecclesiastes": "eccl.",
+    "song of solomon": "song of sol.",
+    "song of sol.": "song of sol.",
+    "isaiah": "isa.",
+    "jeremiah": "jer.",
+    "lamentations": "lam.",
+    "ezekiel": "ezek.",
+    "daniel": "dan.",
+    "hosea": "hos.",
+    "joel": "joel",
+    "amos": "amos",
+    "obadiah": "obad.",
+    "jonah": "jonah",
+    "micah": "mic.",
+    "nahum": "nah.",
+    "habakkuk": "hab.",
+    "zephaniah": "zeph.",
+    "haggai": "hag.",
+    "zechariah": "zech.",
+    "malachi": "mal.",
+
+    # Greek Scriptures - English
+    "matthew": "matt.",
+    "mark": "mark",
+    "luke": "luke",
+    "john": "john",
+    "acts": "acts",
+    "romans": "rom.",
+    "1 corinthians": "1 cor.",
+    "1corinthians": "1 cor.",
+    "2 corinthians": "2 cor.",
+    "2corinthians": "2 cor.",
+    "galatians": "gal.",
+    "ephesians": "eph.",
+    "philippians": "phil.",
+    "colossians": "col.",
+    "1 thessalonians": "1 thess.",
+    "1thessalonians": "1 thess.",
+    "2 thessalonians": "2 thess.",
+    "2thessalonians": "2 thess.",
+    "1 timothy": "1 tim.",
+    "1timothy": "1 tim.",
+    "2 timothy": "2 tim.",
+    "2timothy": "2 tim.",
+    "titus": "titus",
+    "philemon": "philem.",
+    "hebrews": "heb.",
+    "james": "jas.",
+    "1 peter": "1 pet.",
+    "1peter": "1 pet.",
+    "2 peter": "2 pet.",
+    "2peter": "2 pet.",
+    "1 john": "1 john",
+    "1john": "1 john",
+    "2 john": "2 john",
+    "2john": "2 john",
+    "3 john": "3 john",
+    "3john": "3 john",
+    "jude": "jude",
+    "revelation": "rev.",
+}
 
 """
 # Section 2 - Parse the reference string
@@ -537,14 +627,19 @@ def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bo
     book_input = " ".join(book.lower().strip().split())
     # Try direct mapping first
     expected_abbreviation = BOOK_MAP.get(book_input)
-    # If the input wasn't found in the map, normalize it and compare
-    # against the visible text in the navigation.
+    # If the input wasn't found in the BOOK_MAP, attempt to
+    # check BOOK_MAP_E for English abbreviation.
     if expected_abbreviation:
-        expected_abbreviation = expected_abbreviation.lower()
+        expected_abbreviation = BOOK_MAP_E.get(book_input)
+        # If the input wasn't found in the BOOK_MAP or BOOK_MAP_E, normalize it and compare
+        # against the visible text in the navigation.
+        if expected_abbreviation:
+            expected_abbreviation = expected_abbreviation.lower()
     if debug:
-        print(f"Book requested: {book}")
+        print(f"Book requested: {book} : {book_input}")
         print(f"Chapter requested: {chapter}")
         print(f"Expected abbreviation: {expected_abbreviation}")
+        print(f"Expected abbreviation straight from BOOK_MAP: {BOOK_MAP.get(book_input)}")
 
     # Search book navigation links
     for a in nav_soup.find_all("a", href=True):
@@ -924,7 +1019,7 @@ One-call interface.
 Raises VerseNotFoundError on failure.
 """
 def extract_verse(epub_path: str, reference: str,debug: bool = False) -> str:
-
+    if debug: print(f"In extract_verse DEBUG={debug}")
     ref = parse_reference(reference)
     book = ref["book"]
     chapter = ref["chapter"]
@@ -1027,12 +1122,12 @@ Example:
 # blocks for the image process. Implement a standard string length
 # for each line number, max number of lines before needing another
 # image. Continue to build images until all the verses are graphed
-# onto images. Use the End_Block = '....' to denote the end of the
+# onto images. Use the config.end_block = '....' to denote the end of the
 # block, an additional image is needed, and a new block will follow.
 # 5b. Parse verse text into structured blocks
 """
 def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, debug: bool = False) -> list[dict]:
-
+    if debug: print(f"In parse_verse_blocks DEBUG={debug}")
 
     if not text or not text.strip(): return []
     if line_length < 1: raise ValueError("line_length must be greater than 0")
@@ -1043,7 +1138,7 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
     # Constructing the lines by splitting all the words, then adding
     # them word by word until line_length
     words = text.split(" ")
-    if debug: print(f"words: {words}")
+    if debug: print(f"words in parse_verse_blocks: {words}")
     lines = []
     current_line = ""
     for word in words:
@@ -1077,16 +1172,18 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
 
     # Convert the lines into blocks of text, divided for each image.
     blocks = []
-    # Adding END_BLOCK to the end of the last, to all blocks except the first
+    # Adding config.end_block to the end of the last line, to all
+    # blocks except the last and only if the next block is not only
+    # one line long
     for image_start in range(0, len(lines), max_lines):
-        if image_start != 0:
+        if image_start != 0 and len(lines[image_start + max_lines:image_start + (max_lines*2)]) == 1:
             lines[image_start - 1] += config.end_block
     # Constructing the blocks, adding line one by one until
     for image_start in range(0, len(lines), max_lines):
         if debug:
             print(f"######image_start: {image_start}")
             print(f"######lines: {lines}")
-        # Adding END_BLOCK to the beginning of the line if not the first block
+        # Adding config.end_block to the beginning of the line if not the first block
         if image_start != 0:
             if debug:
                 print("at last line if block")
@@ -1100,10 +1197,14 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
             print(f"Future Sight: {len(lines[image_start + max_lines:image_start + (max_lines*2)])}")
         # If the next block is only one line long, add it to this block instead
         if len(lines[image_start + max_lines:image_start + (max_lines*2)]) == 1:
+            # Remove the only line of the block
             blocks.pop()
+            # Re-construct the line
             image_lines = lines[image_start:image_start + (max_lines*2)]
+            # append to the current block and break for block return
             blocks.append({ "num": len(blocks) + 1, "text": "\n".join(image_lines) })
             if debug:
+                print("Got into the blocks.pop() if clause")
                 print(f"Image start: {image_start}")
                 print(f"image_lines: {image_lines}")
             break
@@ -1246,6 +1347,7 @@ render_page to accept the blocks from parse_verse_blocks correctly
 # 5e. Render a single page image
 """
 def render_pages(blocks: dict, citation: str, font: FreeTypeFont, font_num: FreeTypeFont, debug: bool = False) -> list[Image.Image]:
+    if debug: print(f"In render_pages DEBUG={debug}")
     # Parse the extracted verse text
     if not blocks: raise ValueError("No verse blocks found in text.")
 
@@ -1291,7 +1393,7 @@ def render_pages(blocks: dict, citation: str, font: FreeTypeFont, font_num: Free
                     print(f"Line length: {(len(line) + config.margin_x)}")
                     print(x)
             if debug: print(f"CITATION_X: {config.img_width - config.citation_x_offset}, CITATION_Y: {config.img_height - config.citation_y_offset}")
-            draw.text((config.img_width - config.citation_x_offset, config.img_height - config.citation_y_offset), citation, font=font_num, fill=config.verse_num_color)
+            draw.text((config.img_width - config.citation_x_offset, config.img_height - config.citation_y_offset), citation.capitalize(), font=font_num, fill=config.verse_num_color)
         images.append(img)
     if debug:
         print("\nGOT TO end FUNCTION render_pages")
@@ -1310,8 +1412,8 @@ one or more 1920×1080 PNG images.
 # 5g. Public entry point
 """
 def generate_images(verse_text: str, citation: str,debug: bool = False) -> list[Image.Image]:
-
-    blocks = parse_verse_blocks(verse_text, config.line_length, config.max_lines)
+    if debug: (f"In generate_images DEBUG={debug}")
+    blocks = parse_verse_blocks(verse_text, config.line_length, config.max_lines,debug)
     if debug:
         print(f"verse text: {verse_text}")
         print(f"citation: {citation}")
