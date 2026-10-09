@@ -123,6 +123,7 @@ BOOK_MAP = {
     # Greek Scriptures
     "mateo": "mat.",
     "marcos": "mar.",
+    "mar": "mar.",
     "lucas": "luc.",
     "juan": "juan",
     "hechos": "hech.",
@@ -295,7 +296,9 @@ def parse_reference(ref: str,debug:bool = False) -> dict:
     #   (?:-(?P<end>\d+))?       optional end verse
     #   $
     pattern = re.compile(r"^\s*"r"(?P<book>[\w\s]+?)"r"\s+"r"(?P<chapter>\d+)"r"[:]"r"(?P<start>\d+)"r"(?:-(?P<end>\d+))?"r"\s*$")
-
+    #todo
+    #Need to fix the regex, with 'Sant.' or 'sant.'; 'sant' without the . works just
+    # fine, similar thing happens with Mar. 14:55
     m = pattern.match(ref)
     if debug: print(f"Applied pattern: {m}")
     if not m:
@@ -629,15 +632,16 @@ def resolve_chapter_href(nav_soup: BeautifulSoup,book: str,chapter: int,debug:bo
     # Normalize input
     book_input = " ".join(book.lower().strip().split())
     # Try direct mapping first
-    expected_abbreviation = BOOK_MAP.get(book_input)
+    expected_abbreviation = BOOK_MAP.get(book_input.lower())
     # If the input wasn't found in the BOOK_MAP, attempt to
     # check BOOK_MAP_E for English abbreviation.
     if not expected_abbreviation:
-        expected_abbreviation = BOOK_MAP_E.get(book_input)
-        # If the input wasn't found in the BOOK_MAP or BOOK_MAP_E, normalize it and compare
-        # against the visible text in the navigation.
-        if expected_abbreviation:
-            expected_abbreviation = expected_abbreviation.lower()
+        if debug: print(f"Didn't find match in BOOK_MAP.get(book_input.lower()) and expected_abbreviation is: {expected_abbreviation}.")
+        expected_abbreviation = BOOK_MAP_E.get(book_input.lower())
+    # If the input wasn't found in the BOOK_MAP or BOOK_MAP_E, normalize it and compare
+    # against the visible text in the navigation.
+    if expected_abbreviation:
+        expected_abbreviation = expected_abbreviation.lower()
     if debug:
         print(f"Book requested: {book} : {book_input}")
         print(f"Chapter requested: {chapter}")
@@ -1181,9 +1185,26 @@ def parse_verse_blocks(text: str, line_length: int = 80, max_lines: int = 8, deb
     # Adding config.end_block to the end of the last line, to all
     # blocks except the last and only if the next block is not only
     # one line long
+    """
+    # Original code: Adding config.end_block to the end of the last line but the first block
     for image_start in range(0, len(lines), max_lines):
-        if image_start != 0 and len(lines[image_start + max_lines:image_start + (max_lines*2)]) == 1:
+        if image_start != 0:
             lines[image_start - 1] += config.end_block
+    """
+    for image_start in range(0, len(lines), max_lines):
+        if debug:
+            print(f"#image_start#: {image_start}")
+            print(f"#lines#: {lines}")
+        if image_start == 0 and len(lines[image_start + max_lines:image_start + (max_lines*2)]) == 1:
+            # Logic here is, if the block is the first and the next block is equal
+            # to only one line break out of this loop.
+            if debug: print(f"Got to the first and the next block is one: {current_line}")
+            break
+        if image_start != 0:
+            if debug: print(f"Got to not the first: {current_line}")
+            lines[image_start - 1] += config.end_block
+            continue
+
     # Constructing the blocks, adding line one by one until
     for image_start in range(0, len(lines), max_lines):
         if debug:
