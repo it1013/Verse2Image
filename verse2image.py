@@ -284,21 +284,22 @@ BOOK_MAP_E = {
 """
 def parse_reference(ref: str,debug:bool = False) -> dict:
     if debug: print(f"In parse_reference, was passed {ref}")
-    ref = ref.strip().strip("[]()\"'")
+    ref = ref.strip().strip(".[]()\"'")
     if debug: print(f"After strip parse_reference ref: {ref}")
     # Pattern: This one was ripped from Ollama, god help anyone that can generate that regex _||_
-    #   ^
+    #   ^                         matches beginning of string
     #   (?P<book>[\w\s]+?)        book name (may include digits + spaces)
-    #   \s+                        whitespace
+    #   \s+                       whitespace
     #   (?P<chapter>\d+)          chapter number
-    #   :                          colon
+    #   :                         colon
     #   (?P<start>\d+)            start verse
-    #   (?:-(?P<end>\d+))?       optional end verse
-    #   $
-    pattern = re.compile(r"^\s*"r"(?P<book>[\w\s]+?)"r"\s+"r"(?P<chapter>\d+)"r"[:]"r"(?P<start>\d+)"r"(?:-(?P<end>\d+))?"r"\s*$")
-    #todo
+    #   (?:-(?P<end>\d+))?        optional end verse
+    #   $                         matches end of string
+    pattern = re.compile(r"^\s*"r"(?P<book>[\w\s.]+?)"r"\s+"r"(?P<chapter>\d+)"r"[:]"r"(?P<start>\d+)"r"(?:-(?P<end>\d+))?"r"\s*$")
+    #pattern = re.compile(r"^\s*"r"(?P<book>[\w\s]+?)"r"\s+"r"(?P<chapter>\d+)"r"[:]"r"(?P<start>\d+)"r"(?:-(?P<end>\d+))?"r"\s*$")
     #Need to fix the regex, with 'Sant.' or 'sant.'; 'sant' without the . works just
-    # fine, similar thing happens with Mar. 14:55
+    # fine, similar thing happens with Mar. 14:55. 10/09/26 The fix was to add . to
+    # the regex, it seems to be working, tested multiple iterations of verses.
     m = pattern.match(ref)
     if debug: print(f"Applied pattern: {m}")
     if not m:
