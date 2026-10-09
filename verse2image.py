@@ -288,7 +288,7 @@ def parse_reference(ref: str,debug:bool = False) -> dict:
     if debug: print(f"After strip parse_reference ref: {ref}")
     # Pattern: This one was ripped from Ollama, god help anyone that can generate that regex _||_
     #   ^                         matches beginning of string
-    #   (?P<book>[\w\s]+?)        book name (may include digits + spaces)
+    #   (?P<book>[\w\s.]+?)        book name (may include digits + spaces)
     #   \s+                       whitespace
     #   (?P<chapter>\d+)          chapter number
     #   :                         colon
