@@ -15,7 +15,7 @@ It locates the appropriate book and chapter inside the EPUB, extracts the reques
 ## Features
 
 * Extracts Bible verses directly from an NWT EPUB.
-* Supports Only Spanish, single verses and verse ranges.
+* Supports single verses and verse ranges, cannot process segmented citations.
 * Supports Bible book names and EPUB abbreviations.
 * Can run directly with Python or inside Docker.
 
@@ -37,7 +37,7 @@ Install the dependencies with:
 pip install ebooklib beautifulsoup4 Pillow
 ```
 
-The project also uses a local `config.py` module for application configuration.
+The project also uses a local `config.ini` module for application configuration.
 
 ---
 
@@ -57,14 +57,14 @@ A typical project directory can look like:
 
 ### Files
 
-| File / Directory | Purpose                               |
-| ---------------- | ------------------------------------- |
-| `verse2image.py` | Main application                      |
-| `config.py`      | Loads application configuration       |
-| `config.ini`     | Runtime/image configuration           |
+| File / Directory | Purpose                              |
+|------------------|--------------------------------------|
+| `verse2image.py` | Main application                     |
+| `config.py`      | Loads application configuration      |
+| `config.ini`     | Runtime/image configuration          |
 | `nwt_S.epub`     | Source EPUB containing the Bible text |
-| `verse_images/`  | Generated PNG images                  |
-| `README.md`      | Project documentation                 |
+| `/verse_images/` | Generated PNG images directory       |
+| `README.md`      | Project documentation                |
 
 ---
 

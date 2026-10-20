@@ -285,6 +285,7 @@ BOOK_MAP_E = {
 def parse_reference(ref: str,debug:bool = False) -> dict:
     if debug: print(f"In parse_reference, was passed {ref}")
     ref = ref.strip().strip(".[]()\"'")
+    ref = re.sub(r',\s*|,', '-', ref) #converts any ',' into '-', this limits the possibility of processing segmented citations
     if debug: print(f"After strip parse_reference ref: {ref}")
     # Pattern: This one was ripped from Ollama, god help anyone that can generate that regex _||_
     #   ^                         matches beginning of string
